@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EDF2EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1412" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tidy">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>Tidy</title>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>
+/* Layout: one narrow column. Progress summary on top, then chore rows whose tinted fill drains toward each due day; a fixed four-tab bar at the bottom. */
+:root{
+  --bg:#EDF2EF;
+  --surface:#FFFFFF;
+  --sunk:#E2E9E5;
+  --ink:#15201C;
+  --muted:#58665F;
+  --line:#D2DCD7;
+  --fresh:#0F7F69;
+  --fresh-tint:#D3ECE4;
+  --soon:#8F5F00;
+  --soon-tint:#F6E7BF;
+  --late:#C23B2A;
+  --late-tint:#F7D7D0;
+  --bar:#C2CEC8;
+  --btn:#15201C;
+  --btn-ink:#FFFFFF;
+  --scrim:rgba(10,20,16,.42);
+  --font-display: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1412; --surface:#18211E; --sunk:#222C28; --ink:#E6EEEA; --muted:#93A29B; --line:#2C3833;
+    --fresh:#45C5A5; --fresh-tint:#173B32; --soon:#E8B64C; --soon-tint:#3A3015; --late:#F2836F; --late-tint:#46231D;
+    --bar:#35433D; --btn:#E6EEEA; --btn-ink:#0E1412; --scrim:rgba(0,0,0,.55);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1412; --surface:#18211E; --sunk:#222C28; --ink:#E6EEEA; --muted:#93A29B; --line:#2C3833;
+  --fresh:#45C5A5; --fresh-tint:#173B32; --soon:#E8B64C; --soon-tint:#3A3015; --late:#F2836F; --late-tint:#46231D;
+  --bar:#35433D; --btn:#E6EEEA; --btn-ink:#0E1412; --scrim:rgba(0,0,0,.55);
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 var(--font-body);-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+body.locked{overflow:hidden}
+button,input,textarea,select{font:inherit;color:inherit}
+button,label.btn{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--fresh);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;padding:0;margin:-1px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.center{text-align:center}
+
+.wrap{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:14px 88px}
+.view{display:flex;flex-direction:column;gap:20px}
+h1{font:800 32px/1.1 var(--font-display);letter-spacing:-.02em;margin:8px 0 0;text-wrap:balance}
+h2{font:700 15px/1.2 var(--font-display);color:var(--muted);margin:0 0 8px 6px;letter-spacing:.01em}
+
+/* progress summary */
+.summary{background:var(--surface);border-radius:22px;padding:18px 18px 18px;display:flex;flex-direction:column;gap:18px}
+.sum-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.lv{flex:1;min-width:0}
+.big{font:800 34px/1 var(--font-display);letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.big small{font-size:15px;font-weight:700;letter-spacing:0;color:var(--muted);margin-left:2px}
+.bal{text-align:right}
+.cap{font-size:14px;color:var(--muted);margin-top:6px}
+.meter{height:8px;border-radius:99px;background:var(--sunk);overflow:hidden;margin-top:12px}
+.meter>span{display:block;height:100%;width:0;background:var(--ink);border-radius:inherit;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.week{display:flex;flex-direction:column;gap:8px}
+.week-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-weight:700}
+.week .meter{height:14px;margin:0}
+.week .meter>span{background:var(--fresh)}
+.week .cap{margin:0}
+
+/* notes */
+#notes{display:flex;flex-direction:column;gap:12px}
+.note{background:var(--sunk);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.note p{margin:0}
+.note .btn{align-self:flex-start;min-height:38px;padding:0 16px;font-size:15px}
+
+/* chore rows: the fill drains toward the due day */
+.list{list-style:none;margin:0;padding:0;background:var(--surface);border-radius:20px;overflow:hidden}
+.row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:stretch}
+.row+.row{border-top:1px solid var(--line)}
+.fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--fresh-tint);transition:width .9s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.row[data-state="soon"] .fill{background:var(--soon-tint)}
+.row[data-state="late"] .fill{background:var(--late-tint)}
+.main{position:relative;display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:68px;padding:10px 4px 10px 14px;background:none;border:0;text-align:left;width:100%}
+.ico{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:22px;line-height:1;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);transition:transform .15s ease}
+.main:active .ico{transform:scale(.9)}
+.row[data-state="late"] .ico{background:var(--late-tint);box-shadow:none}
+.txt{display:flex;flex-direction:column;min-width:0}
+.name{font-weight:650;font-size:17px;line-height:1.25;overflow-wrap:anywhere}
+.due{font-size:14px;color:var(--muted)}
+.row[data-state="soon"] .due{color:var(--soon);font-weight:650}
+.row[data-state="late"] .due{color:var(--late);font-weight:700}
+.pts{display:flex;flex-direction:column;align-items:flex-end;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pv{font:800 18px/1.1 var(--font-display)}
+.pb{font-size:12px;color:var(--fresh);font-weight:700}
+.more{position:relative;background:none;border:0;color:var(--muted);display:grid;place-items:center;padding:0}
+.empty{padding:16px;color:var(--muted);font-size:15px}
+.pop{position:absolute;right:64px;top:50%;font:800 22px/1 var(--font-display);color:var(--fresh);pointer-events:none;animation:rise 1s ease-out forwards;z-index:2}
+@keyframes rise{
+  0%{opacity:0;transform:translateY(-50%) scale(.7)}
+  20%{opacity:1;transform:translateY(-80%) scale(1.08)}
+  100%{opacity:0;transform:translateY(-210%) scale(1)}
+}
+
+/* rewards */
+.row.rw{grid-template-columns:minmax(0,1fr) auto;align-items:center;padding-right:14px}
+.rw .main{grid-template-columns:42px minmax(0,1fr)}
+.redeem{min-height:38px;padding:0 16px;border-radius:99px;border:0;background:var(--btn);color:var(--btn-ink);font-weight:700;font-size:15px;white-space:nowrap;touch-action:manipulation}
+.redeem:disabled{background:var(--sunk);color:var(--muted);cursor:default}
+.redeem[data-armed]{background:var(--fresh);color:var(--btn-ink)}
+
+/* history */
+.panel{background:var(--surface);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.panel h3{margin:0;font:750 18px/1.2 var(--font-display)}
+.panel p{margin:0}
+.chart svg{display:block;width:100%;height:auto}
+.chart .b{fill:var(--bar)}
+.chart .b.met{fill:var(--fresh)}
+.chart .gl{stroke:var(--muted);stroke-dasharray:3 4;stroke-width:1.2}
+.chart .base{stroke:var(--line);stroke-width:1}
+.chart text{fill:var(--muted);font-size:10.5px;font-family:var(--font-body);font-variant-numeric:tabular-nums}
+.chart text.v{fill:var(--ink);font-weight:700}
+.chart text.cur{fill:var(--ink);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stat{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat .k{font-size:13px;color:var(--muted)}
+.stat .v{font:800 22px/1.1 var(--font-display);font-variant-numeric:tabular-nums}
+.days{display:flex;flex-direction:column;gap:18px}
+.row.entry{grid-template-columns:36px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 6px 10px 14px}
+.entry .ico{width:36px;height:36px;font-size:18px}
+.entry .when{font-size:13px;color:var(--muted)}
+.entry .p{font-weight:750;font-variant-numeric:tabular-nums}
+.entry .p.neg{color:var(--muted)}
+.rm{background:none;border:0;color:var(--muted);font-size:13px;font-weight:650;padding:10px 8px;min-width:64px;text-align:right;touch-action:manipulation}
+.rm[data-armed]{color:var(--late)}
+
+/* buttons and fields */
+.btn{min-height:48px;padding:0 18px;border-radius:14px;border:0;background:var(--btn);color:var(--btn-ink);font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+.btn.soft{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.note .btn.soft{background:var(--surface)}
+.btn.danger{background:var(--late-tint);color:var(--late)}
+.btn.danger[data-armed]{background:var(--late);color:var(--btn-ink)}
+.btn.block{width:100%}
+.field{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:650;color:var(--muted);min-width:0}
+.input{width:100%;min-height:46px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:16px;font-weight:500;-webkit-appearance:none;appearance:none}
+.input.center{text-align:center;font-size:22px;padding:6px}
+textarea.input{min-height:96px;resize:vertical;font-size:14px}
+.grid2{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px}
+.grid2b{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.inline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.seg{position:relative;display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border-radius:12px;padding:3px;border:1px solid var(--line)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{min-height:40px;display:grid;place-items:center;border-radius:9px;font-weight:650;color:var(--muted);cursor:pointer}
+.seg input:checked+label{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.seg input:focus-visible+label{outline:2px solid var(--fresh)}
+.err{margin:0;color:var(--late);font-size:14px;font-weight:650}
+ul.plain{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px}
+details summary{cursor:pointer;font-weight:650;padding:6px 0;color:var(--ink)}
+details[open]{display:flex;flex-direction:column;gap:10px}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:40;animation:fade .2s ease-out}
+.sheet{position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:560px;max-height:90vh;max-height:90dvh;overflow-y:auto;overscroll-behavior:contain;z-index:41;background:var(--surface);border-radius:24px 24px 0 0;padding:6px 16px calc(20px + env(safe-area-inset-bottom,0px));animation:up .3s cubic-bezier(.2,.8,.2,1)}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--line);margin:4px auto 12px}
+.sheet-head{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.sheet-head h3{flex:1;margin:0;font:800 23px/1.15 var(--font-display);letter-spacing:-.01em;min-width:0;overflow-wrap:anywhere}
+.x{width:36px;height:36px;flex:none;border-radius:50%;border:0;background:var(--sunk);color:var(--muted);display:grid;place-items:center;padding:0}
+.x svg{width:16px;height:16px;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;fill:none}
+.sec{padding:16px 0;display:flex;flex-direction:column;gap:12px;margin:0}
+.sec+.sec{border-top:1px solid var(--line)}
+.sec h4{margin:0;font:750 17px/1.2 var(--font-display)}
+.sec p{margin:0}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade{from{opacity:0}}
+
+/* toast */
+.toast{position:fixed;left:16px;right:16px;bottom:calc(70px + env(safe-area-inset-bottom,0px));margin:0 auto;max-width:528px;z-index:50;background:var(--btn);color:var(--btn-ink);border-radius:16px;padding:12px 12px 12px 16px;display:flex;align-items:center;gap:12px;font-weight:650;font-size:15px;box-shadow:0 6px 24px rgba(0,0,0,.18);animation:tin .25s ease-out}
+.toast span{flex:1;min-width:0}
+.toast button{background:none;border:0;color:var(--btn-ink);font-weight:800;text-decoration:underline;text-underline-offset:3px;padding:6px 6px;touch-action:manipulation}
+@keyframes tin{from{opacity:0;transform:translateY(12px)}}
+
+/* tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs-in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.tab{min-height:56px;background:none;border:0;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:650;touch-action:manipulation}
+.tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tab[aria-current="page"]{color:var(--ink)}
+.tab[aria-current="page"] svg{stroke-width:2.4}
+
+@media (prefers-reduced-motion: reduce){
+  .fill,.meter>span{transition:none}
+  .sheet,.scrim,.toast{animation:none}
+  .pop{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <section id="v-chores" class="view" aria-labelledby="h-chores">
+      <h1 id="h-chores" class="sr">Chores</h1>
+      <div id="notes" hidden></div>
+      <section class="summary" aria-label="Progress">
+        <div class="sum-top">
+          <div class="lv">
+            <div class="big">Level <span id="lvl" class="num">1</span></div>
+            <div class="meter" aria-hidden="true"><span id="lvl-fill"></span></div>
+            <div class="cap num" id="lvl-next">100 points to level 2</div>
+          </div>
+          <div class="bal">
+            <div class="big" id="bal">0</div>
+            <div class="cap">points to spend</div>
+          </div>
+        </div>
+        <div class="week">
+          <div class="week-head"><span>This week</span><span class="num"><span id="wk">0</span> / <span id="goal">100</span></span></div>
+          <div class="meter" role="progressbar" aria-label="Points this week" id="wk-bar" aria-valuemin="0"><span id="wk-fill"></span></div>
+          <div class="cap" id="streak"></div>
+        </div>
+      </section>
+      <div>
+        <h2>On a schedule</h2>
+        <ul class="list" id="list-sched"></ul>
+      </div>
+      <div id="bonus-wrap">
+        <h2>Bonus</h2>
+        <ul class="list" id="list-bonus"></ul>
+      </div>
+      <button class="btn soft block" type="button" data-act="add-chore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add a chore</button>
+    </section>
+
+    <section id="v-rewards" class="view" hidden aria-labelledby="h-rewards">
+      <h1 id="h-rewards">Rewards</h1>
+      <section class="summary" aria-label="Balance">
+        <div>
+          <div class="big" id="r-bal">0</div>
+          <div class="cap">points to spend. Spending never lowers your level.</div>
+        </div>
+      </section>
+      <ul class="list" id="list-rewards"></ul>
+      <button class="btn soft block" type="button" data-act="add-reward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add a reward</button>
+    </section>
+
+    <section id="v-history" class="view" hidden aria-labelledby="h-history">
+      <h1 id="h-history">History</h1>
+      <div class="panel">
+        <h3>Last 8 weeks</h3>
+        <p class="small muted" id="chart-cap"></p>
+        <div class="chart" id="chart"></div>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="days" id="hist"></div>
+    </section>
+
+    <section id="v-settings" class="view" hidden aria-labelledby="h-settings">
+      <h1 id="h-settings">Settings</h1>
+      <div class="panel">
+        <h3>Goals</h3>
+        <div class="grid2b">
+          <label class="field">Weekly goal<input class="input num" id="s-goal" type="number" inputmode="numeric" min="0" max="9999"></label>
+          <label class="field">On-time bonus, %<input class="input num" id="s-bonus" type="number" inputmode="numeric" min="0" max="200"></label>
+        </div>
+        <p class="small muted">Weeks run Monday to Sunday.</p>
+      </div>
+      <div class="panel">
+        <h3>How points work</h3>
+        <ul class="plain">
+          <li>A chore earns its points when you tap it.</li>
+          <li>Do a scheduled chore by its due day and it earns the on-time bonus on top.</li>
+          <li>Reach the weekly goal week after week to build a streak.</li>
+          <li>Every point you earn counts toward your level. Spend points on rewards; spending never lowers your level.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Backup</h3>
+        <p class="small muted">Everything is stored on this phone only. Removing Tidy from your Home Screen deletes its data, so save a backup now and then, for example to iCloud Drive.</p>
+        <p class="small" id="s-last">Last backup: never</p>
+        <button class="btn block" type="button" data-act="export">Save backup file</button>
+        <button class="btn soft block" type="button" data-act="copy">Copy backup as text</button>
+        <label class="btn soft block" for="s-file">Restore from file</label>
+        <input type="file" id="s-file" class="sr" accept="application/json,.json,text/plain,.txt">
+        <details id="s-paste-box">
+          <summary>Restore from pasted text</summary>
+          <textarea class="input" id="s-paste" rows="4" placeholder="Paste backup text here"></textarea>
+          <button class="btn soft block" type="button" data-act="restore-paste">Restore from text</button>
+        </details>
+      </div>
+      <div class="panel">
+        <h3>Start over</h3>
+        <p class="small muted">Erase every chore, reward and log entry on this phone and go back to the starter list.</p>
+        <button class="btn danger block" type="button" data-act="erase">Erase everything</button>
+      </div>
+      <p class="small muted center">Tidy 1.0</p>
+    </section>
+  </main>
+</div>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-in">
+    <button class="tab" type="button" data-act="tab" data-view="chores" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M8 12.4l2.8 2.8L16.4 9.6"/></svg>Chores</button>
+    <button class="tab" type="button" data-act="tab" data-view="rewards"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9" width="17" height="11.5" rx="2.5"/><path d="M3.5 13.5h17M12 9v11.5M12 9C10.5 5.5 6.5 5 6.5 7.2S9.6 9 12 9zm0 0c1.5-3.5 5.5-4 5.5-1.8S14.4 9 12 9z"/></svg>Rewards</button>
+    <button class="tab" type="button" data-act="tab" data-view="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20v-7M10 20V5M15 20v-10M20 20v-4"/></svg>History</button>
+    <button class="tab" type="button" data-act="tab" data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M18.5 7H20M4 17h3.5M12.5 17H20"/><circle cx="15.8" cy="7" r="2.3"/><circle cx="10" cy="17" r="2.3"/></svg>Settings</button>
+  </div>
+</nav>
+<div class="sr" id="live" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+var DAY = 864e5, KEY = 'tidy.v1';
+var HOSTED = !!document.querySelector('link[rel="manifest"]');
+var STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+
+function $(s, el){ return (el || document).querySelector(s); }
+function $$(s, el){ return Array.prototype.slice.call((el || document).querySelectorAll(s)); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+var seq = 0;
+function uid(){ return Date.now().toString(36) + (seq++).toString(36) + Math.random().toString(36).slice(2, 6); }
+function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+function pad(n){ return String(n).padStart(2, '0'); }
+function isoDate(t){ var d = new Date(t); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function sod(t){ var d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function addDays(t, n){ var d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); }
+function dayDiff(a, b){ return Math.round((sod(b) - sod(a)) / DAY); }
+function sow(t){ var d = new Date(sod(t)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+function reduceMotion(){ return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); }
+function plural(n, one, many){ return n === 1 ? one : many; }
+
+var ICON = {
+  dots: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="19" cy="12" r="1.9" fill="currentColor"/></svg>',
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+};
+
+/* ---------- data ---------- */
+var DEFAULT_CHORES = [
+  ['Laundry', '🧺', 20, 7],
+  ['Groceries', '🛒', 15, 7],
+  ['Vacuum', '🧹', 20, 7],
+  ['Take out the trash', '🗑️', 5, 7],
+  ['Take out the recycling', '♻️', 5, 7],
+  ['Clean the kitchen', '🍽️', 15, 3],
+  ['Clean the stove', '🔥', 15, 14],
+  ['Clean the coffee grinder', '☕', 10, 30],
+  ['Mop the floors', '🪣', 40, null]
+];
+var DEFAULT_REWARDS = [
+  ['Lazy day, no guilt', '🛋️', 150],
+  ['Takeout night', '🍜', 250],
+  ['Something off the wishlist', '🎁', 600]
+];
+function freshState(){
+  return {
+    v: 1,
+    created: Date.now(),
+    chores: DEFAULT_CHORES.map(function(c){ return { id: uid(), name: c[0], emoji: c[1], points: c[2], interval: c[3] }; }),
+    rewards: DEFAULT_REWARDS.map(function(r){ return { id: uid(), name: r[0], emoji: r[1], cost: r[2] }; }),
+    logs: [],
+    settings: { weeklyGoal: 100, bonusPct: 25 },
+    ui: { hintDone: false, installDismissed: false, lastBackup: null }
+  };
+}
+function isValid(d){ return !!d && typeof d === 'object' && Array.isArray(d.chores) && Array.isArray(d.logs); }
+function normalize(d){
+  var f = freshState();
+  d.rewards = Array.isArray(d.rewards) ? d.rewards : [];
+  d.settings = Object.assign({}, f.settings, d.settings || {});
+  d.ui = Object.assign({}, f.ui, d.ui || {});
+  d.v = 1;
+  return d;
+}
+var storageOK = true;
+function load(){
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) { var d = JSON.parse(raw); if (isValid(d)) return normalize(d); }
+  } catch (e) { storageOK = false; }
+  return freshState();
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(S)); storageOK = true; }
+  catch (e) {
+    if (storageOK) toast("Couldn't save. This browser is blocking storage, so changes will be lost when you close it.");
+    storageOK = false;
+  }
+}
+var S = load();
+try { if (!localStorage.getItem(KEY)) save(); } catch (e) {}
+
+/* ---------- scoring ---------- */
+function lastLog(choreId, before){
+  var best = null;
+  for (var i = 0; i < S.logs.length; i++) {
+    var l = S.logs[i];
+    if (l.type === 'chore' && l.choreId === choreId && (before == null || l.t < before) && (!best || l.t > best.t)) best = l;
+  }
+  return best;
+}
+function status(c, now){
+  var last = lastLog(c.id);
+  if (!c.interval) return { kind: 'bonus', last: last, daysSince: last ? dayDiff(last.t, now) : null, fill: 0 };
+  if (!last) return { kind: 'new', last: null, fill: 0 };
+  var due = addDays(sod(last.t), c.interval);
+  var daysLeft = dayDiff(now, due);
+  var fill = Math.max(0, Math.min(1, (addDays(due, 1) - now) / (c.interval * DAY)));
+  var soonAt = c.interval >= 4 ? Math.max(1, Math.round(c.interval * 0.25)) : 0;
+  var kind = daysLeft < 0 ? 'late' : daysLeft <= soonAt ? 'soon' : 'ok';
+  return { kind: kind, last: last, daysLeft: daysLeft, fill: fill };
+}
+function pointsFor(c, t){
+  var base = Math.max(0, +c.points || 0);
+  if (!c.interval) return { pts: base, bonus: 0 };
+  var prev = lastLog(c.id, t);
+  if (!prev) return { pts: base, bonus: 0 };
+  var due = addDays(sod(prev.t), c.interval);
+  var bonus = dayDiff(t, due) >= 0 ? Math.round(base * (+S.settings.bonusPct || 0) / 100) : 0;
+  return { pts: base + bonus, bonus: bonus };
+}
+function totals(){
+  var earned = 0, spent = 0;
+  S.logs.forEach(function(l){ if (l.type === 'chore') earned += l.pts; else if (l.type === 'redeem') spent += l.cost; });
+  return { earned: earned, spent: spent, balance: earned - spent };
+}
+function weekPts(ws){
+  var we = addDays(ws, 7), s = 0;
+  S.logs.forEach(function(l){ if (l.type === 'chore' && l.t >= ws && l.t < we) s += l.pts; });
+  return s;
+}
+function levelStart(L){ return 50 * L * (L - 1); }
+function levelOf(p){ var L = 1; while (levelStart(L + 1) <= p) L++; return L; }
+function streak(){
+  var goal = +S.settings.weeklyGoal || 0;
+  if (goal <= 0 || !S.logs.length) return 0;
+  var first = S.logs.reduce(function(m, l){ return Math.min(m, l.t); }, Infinity);
+  var ws = sow(Date.now());
+  var n = weekPts(ws) >= goal ? 1 : 0;
+  ws = addDays(ws, -7);
+  while (ws >= sow(first) && weekPts(ws) >= goal) { n++; ws = addDays(ws, -7); }
+  return n;
+}
+function snap(){
+  var t = totals();
+  return { level: levelOf(t.earned), week: weekPts(sow(Date.now())), goal: +S.settings.weeklyGoal || 0 };
+}
+
+/* ---------- ui helpers ---------- */
+var toastEl = null, toastTimer = 0;
+function toast(msg, undo){
+  if (toastEl) toastEl.remove();
+  clearTimeout(toastTimer);
+  var el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = '<span>' + esc(msg) + '</span>' + (undo ? '<button type="button">Undo</button>' : '');
+  if (undo) el.querySelector('button').addEventListener('click', function(){ el.remove(); toastEl = null; undo(); });
+  document.body.appendChild(el);
+  toastEl = el;
+  $('#live').textContent = msg;
+  toastTimer = setTimeout(function(){ el.remove(); if (toastEl === el) toastEl = null; }, undo ? 6000 : 2800);
+}
+function arm(btn, label){
+  if (btn.dataset.armed) return true;
+  var orig = btn.innerHTML;
+  btn.dataset.armed = '1';
+  btn.textContent = label;
+  clearTimeout(btn._t);
+  btn._t = setTimeout(function(){ delete btn.dataset.armed; btn.innerHTML = orig; }, 3500);
+  return false;
+}
+function firstGrapheme(s){
+  if (!s) return '';
+  try {
+    if (window.Intl && Intl.Segmenter) {
+      var it = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)[Symbol.iterator]().next();
+      return it.value ? it.value.segment : '';
+    }
+  } catch (e) {}
+  return Array.from(s)[0] || '';
+}
+
+var sheet = null, lastFocus = null, pendingConfirm = null;
+function dropToast(){ if (toastEl) { toastEl.remove(); toastEl = null; } clearTimeout(toastTimer); }
+function openSheet(html){
+  closeSheet(true);
+  dropToast();
+  lastFocus = document.activeElement;
+  var scrim = document.createElement('div');
+  scrim.className = 'scrim';
+  scrim.dataset.act = 'close';
+  var sh = document.createElement('div');
+  sh.className = 'sheet';
+  sh.setAttribute('role', 'dialog');
+  sh.setAttribute('aria-modal', 'true');
+  sh.setAttribute('aria-labelledby', 'sheet-title');
+  sh.innerHTML = '<div class="grab" aria-hidden="true"></div>' + html;
+  document.body.appendChild(scrim);
+  document.body.appendChild(sh);
+  sheet = { scrim: scrim, sh: sh };
+  document.body.classList.add('locked');
+  setTimeout(function(){ var x = sh.querySelector('.x'); if (x) x.focus({ preventScroll: true }); }, 40);
+}
+function closeSheet(silent){
+  if (!sheet) return;
+  sheet.scrim.remove(); sheet.sh.remove(); sheet = null;
+  document.body.classList.remove('locked');
+  if (!silent && lastFocus && lastFocus.isConnected) lastFocus.focus({ preventScroll: true });
+}
+function sheetHead(icon, title){
+  return '<div class="sheet-head">' + (icon != null ? '<span class="ico" aria-hidden="true" id="sheet-ico">' + esc(icon) + '</span>' : '') +
+    '<h3 id="sheet-title">' + esc(title) + '</h3><button class="x" type="button" data-act="close" aria-label="Close">' + ICON.x + '</button></div>';
+}
+function confirmSheet(title, body, yesLabel, fn){
+  pendingConfirm = fn;
+  openSheet(sheetHead(null, title) + '<div class="sec"><p>' + esc(body) + '</p>' +
+    '<button class="btn danger block" type="button" data-act="confirm-yes">' + esc(yesLabel) + '</button>' +
+    '<button class="btn soft block" type="button" data-act="close">Cancel</button></div>');
+}
+
+/* ---------- views ---------- */
+var view = 'chores', frozenOrder = null, histLimit = 60;
+var VIEWS = ['chores', 'rewards', 'history', 'settings'];
+
+function show(v){
+  if (VIEWS.indexOf(v) < 0) v = 'chores';
+  if (v !== view) dropToast();
+  view = v;
+  VIEWS.forEach(function(id){ $('#v-' + id).hidden = id !== v; });
+  $$('.tab').forEach(function(t){ t.setAttribute('aria-current', t.dataset.view === v ? 'page' : 'false'); });
+  frozenOrder = null;
+  render();
+  window.scrollTo(0, 0);
+  try { history.replaceState(null, '', '#' + v); } catch (e) {}
+}
+function render(anim){
+  if (view === 'chores') renderChores(anim);
+  else if (view === 'rewards') renderRewards();
+  else if (view === 'history') renderHistory();
+  else renderSettings();
+}
+
+function renderNotes(){
+  var n = [];
+  if (!HOSTED) {
+    n.push('<div class="note"><p><b>This is a preview.</b> Anything you log here stays in this browser only. The copy you install on your Home Screen keeps its own, separate data.</p></div>');
+  } else if (!STANDALONE && !S.ui.installDismissed) {
+    n.push('<div class="note"><p><b>Add it to your Home Screen first.</b> In Safari, tap Share, then Add to Home Screen, and open Tidy from there. The Home Screen app keeps its own data, separate from this Safari tab.</p><button class="btn soft" type="button" data-act="dismiss-install">Got it</button></div>');
+  }
+  if (!S.logs.length && !S.ui.hintDone) {
+    n.push('<div class="note"><p>Tap a chore when you finish it. Did one recently? Tap the dots on its row and log the day you did it, so its timer starts from there.</p><button class="btn soft" type="button" data-act="hint-ok">Got it</button></div>');
+  }
+  var box = $('#notes');
+  box.innerHTML = n.join('');
+  box.hidden = !n.length;
+}
+
+function renderSummary(){
+  var t = totals(), L = levelOf(t.earned), a = levelStart(L), b = levelStart(L + 1);
+  $('#lvl').textContent = L;
+  $('#lvl-fill').style.width = ((t.earned - a) / (b - a) * 100).toFixed(1) + '%';
+  $('#lvl-next').textContent = fmt(b - t.earned) + ' ' + plural(b - t.earned, 'point', 'points') + ' to level ' + (L + 1);
+  $('#bal').textContent = fmt(t.balance);
+  var goal = +S.settings.weeklyGoal || 0, wk = weekPts(sow(Date.now()));
+  $('#wk').textContent = fmt(wk);
+  $('#goal').textContent = fmt(goal);
+  var pct = goal > 0 ? Math.min(1, wk / goal) : 0;
+  $('#wk-fill').style.width = (pct * 100).toFixed(1) + '%';
+  var bar = $('#wk-bar');
+  bar.setAttribute('aria-valuemax', goal);
+  bar.setAttribute('aria-valuenow', Math.min(wk, goal));
+  var sk = streak(), msg;
+  if (goal <= 0) msg = 'No weekly goal set. Add one in Settings.';
+  else if (wk >= goal) msg = sk > 1 ? 'Goal reached. ' + sk + '-week streak.' : 'Goal reached this week.';
+  else if (sk > 0) msg = sk + '-week streak. ' + fmt(goal - wk) + ' more this week keeps it going.';
+  else msg = fmt(goal - wk) + ' more ' + plural(goal - wk, 'point', 'points') + ' to reach this week’s goal.';
+  $('#streak').textContent = msg;
+}
+
+function dueText(st){
+  if (st.kind === 'new') return 'Not logged yet';
+  if (st.kind === 'bonus') {
+    if (!st.last) return 'Not done yet';
+    if (st.daysSince === 0) return 'Done today';
+    if (st.daysSince === 1) return 'Done yesterday';
+    return 'Done ' + st.daysSince + ' days ago';
+  }
+  if (st.kind === 'late') { var d = -st.daysLeft; return d + ' ' + plural(d, 'day', 'days') + ' overdue'; }
+  if (st.daysLeft === 0) return 'Due today';
+  if (st.daysLeft === 1) return 'Due tomorrow';
+  return 'Due in ' + st.daysLeft + ' days';
+}
+function choreRow(c, st, now){
+  var p = pointsFor(c, now), due = dueText(st);
+  return '<li class="row" data-id="' + c.id + '" data-state="' + st.kind + '">' +
+    '<div class="fill" style="width:' + (st.fill * 100).toFixed(1) + '%"></div>' +
+    '<button class="main" type="button" data-act="log" aria-label="' + esc(c.name + '. ' + due + '. Tap to log for ' + p.pts + ' points') + '">' +
+      '<span class="ico" aria-hidden="true">' + esc(c.emoji || '•') + '</span>' +
+      '<span class="txt"><span class="name">' + esc(c.name) + '</span><span class="due">' + due + '</span></span>' +
+      '<span class="pts" aria-hidden="true"><span class="pv">+' + p.pts + '</span>' + (p.bonus ? '<span class="pb">on time</span>' : '') + '</span>' +
+    '</button>' +
+    '<button class="more" type="button" data-act="more" aria-label="' + esc(c.name) + ': log an earlier day or edit">' + ICON.dots + '</button>' +
+  '</li>';
+}
+function renderChores(anim){
+  renderNotes();
+  renderSummary();
+  var now = Date.now();
+  var sched = S.chores.filter(function(c){ return c.interval; }).map(function(c){ return { c: c, st: status(c, now) }; });
+  if (frozenOrder) {
+    var pos = {};
+    frozenOrder.forEach(function(id, i){ pos[id] = i; });
+    var at = function(x){ return x.c.id in pos ? pos[x.c.id] : 1e9; };
+    sched.sort(function(a, b){ return at(a) - at(b); });
+  } else {
+    var rank = function(x){ return x.st.kind === 'late' ? -1000 + x.st.daysLeft : x.st.kind === 'new' ? -500 : x.st.daysLeft + x.st.fill / 10; };
+    sched.sort(function(a, b){ return rank(a) - rank(b); });
+  }
+  $('#list-sched').innerHTML = sched.length
+    ? sched.map(function(x){ return choreRow(x.c, x.st, now); }).join('')
+    : '<li class="empty">No scheduled chores. Add one below.</li>';
+  var bonus = S.chores.filter(function(c){ return !c.interval; });
+  $('#list-bonus').innerHTML = bonus.map(function(c){ return choreRow(c, status(c, now), now); }).join('');
+  $('#bonus-wrap').hidden = !bonus.length;
+
+  if (anim && !reduceMotion()) {
+    var f = document.querySelector('.row[data-id="' + anim.id + '"] .fill');
+    if (f) {
+      var target = f.style.width;
+      f.style.transition = 'none';
+      f.style.width = (anim.from * 100).toFixed(1) + '%';
+      void f.offsetWidth;
+      f.style.transition = '';
+      f.style.width = target;
+    }
+  }
+}
+
+function renderRewards(){
+  var bal = totals().balance;
+  $('#r-bal').textContent = fmt(bal);
+  $('#list-rewards').innerHTML = S.rewards.length ? S.rewards.map(function(r){
+    var short = r.cost - bal;
+    return '<li class="row rw" data-id="' + r.id + '">' +
+      '<button class="main" type="button" data-act="edit-reward" aria-label="Edit ' + esc(r.name) + '">' +
+        '<span class="ico" aria-hidden="true">' + esc(r.emoji || '•') + '</span>' +
+        '<span class="txt"><span class="name">' + esc(r.name) + '</span><span class="due num">' + fmt(r.cost) + ' points</span></span>' +
+      '</button>' +
+      '<button class="redeem num" type="button" data-act="redeem"' + (short > 0 ? ' disabled' : '') + '>' + (short > 0 ? fmt(short) + ' to go' : 'Redeem') + '</button>' +
+    '</li>';
+  }).join('') : '<li class="empty">No rewards yet. Add something worth working toward.</li>';
+}
+
+function chartSVG(weeks, goal){
+  var W = 340, H = 172, L = 4, R = 4, T = 20, B = 24;
+  var n = weeks.length, slot = (W - L - R) / n, bw = Math.min(26, slot * 0.6);
+  var maxV = Math.max(goal, 10, Math.max.apply(null, weeks.map(function(w){ return w.pts; }))) * 1.14;
+  var y = function(v){ return T + (H - T - B) * (1 - v / maxV); };
+  var label = weeks.map(function(w){ var d = new Date(w.ws); return (d.getMonth() + 1) + '/' + d.getDate() + ': ' + w.pts; }).join(', ');
+  var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Weekly points. ' + esc(label) + '">';
+  s += '<line class="base" x1="' + L + '" x2="' + (W - R) + '" y1="' + (H - B) + '" y2="' + (H - B) + '"/>';
+  if (goal > 0) s += '<line class="gl" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(goal).toFixed(1) + '" y2="' + y(goal).toFixed(1) + '"/>';
+  weeks.forEach(function(w, i){
+    var cx = L + slot * i + slot / 2, top = y(w.pts), cur = i === n - 1;
+    if (w.pts > 0) {
+      s += '<rect class="b' + (goal > 0 && w.pts >= goal ? ' met' : '') + '" x="' + (cx - bw / 2).toFixed(1) + '" y="' + top.toFixed(1) +
+        '" width="' + bw.toFixed(1) + '" height="' + Math.max(2, H - B - top).toFixed(1) + '" rx="5"/>';
+      s += '<text class="v" x="' + cx.toFixed(1) + '" y="' + (top - 6).toFixed(1) + '" text-anchor="middle">' + fmt(w.pts) + '</text>';
+    }
+    var d = new Date(w.ws);
+    s += '<text x="' + cx.toFixed(1) + '" y="' + (H - 7) + '" text-anchor="middle"' + (cur ? ' class="cur"' : '') + '>' + (cur ? 'Now' : (d.getMonth() + 1) + '/' + d.getDate()) + '</text>';
+  });
+  return s + '</svg>';
+}
+function dayLabel(t, now){
+  var dd = dayDiff(t, now);
+  if (dd === 0) return 'Today';
+  if (dd === 1) return 'Yesterday';
+  var o = { weekday: 'short', month: 'short', day: 'numeric' };
+  if (new Date(t).getFullYear() !== new Date(now).getFullYear()) o.year = 'numeric';
+  return new Date(t).toLocaleDateString('en-US', o);
+}
+function timeLabel(t){ return new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+function renderHistory(){
+  var now = Date.now(), goal = +S.settings.weeklyGoal || 0;
+  var weeks = [], ws = sow(now);
+  for (var i = 0; i < 8; i++) { weeks.unshift({ ws: ws, pts: weekPts(ws) }); ws = addDays(ws, -7); }
+  $('#chart').innerHTML = chartSVG(weeks, goal);
+  $('#chart-cap').textContent = goal > 0 ? 'Points per week. Green bars hit the goal of ' + fmt(goal) + '; the dashed line marks it.' : 'Points per week.';
+  var t = totals(), byWeek = {};
+  S.logs.forEach(function(l){ if (l.type === 'chore') { var k = sow(l.t); byWeek[k] = (byWeek[k] || 0) + l.pts; } });
+  var best = 0; Object.keys(byWeek).forEach(function(k){ best = Math.max(best, byWeek[k]); });
+  $('#stats').innerHTML = [['Earned', t.earned], ['Spent', t.spent], ['Best week', best]].map(function(p){
+    return '<div class="stat"><span class="k">' + p[0] + '</span><span class="v">' + fmt(p[1]) + '</span></div>';
+  }).join('');
+
+  var all = S.logs.slice().sort(function(a, b){ return b.t - a.t; });
+  if (!all.length) { $('#hist').innerHTML = '<div class="note"><p>Nothing logged yet. Finished chores and redeemed rewards will show up here.</p></div>'; return; }
+  var shown = all.slice(0, histLimit), html = '', cur = null;
+  shown.forEach(function(l){
+    var d = sod(l.t);
+    if (d !== cur) {
+      if (cur !== null) html += '</ul></div>';
+      html += '<div><h2>' + esc(dayLabel(d, now)) + '</h2><ul class="list">';
+      cur = d;
+    }
+    var red = l.type === 'redeem';
+    var when = red ? 'Reward, ' + timeLabel(l.t) : (l.backdated ? 'Logged later' : timeLabel(l.t)) + (l.bonus ? ', on-time bonus' : '');
+    html += '<li class="row entry" data-id="' + l.id + '">' +
+      '<span class="ico" aria-hidden="true">' + esc(l.emoji || '•') + '</span>' +
+      '<span class="txt"><span class="name">' + esc(l.name) + '</span><span class="when">' + esc(when) + '</span></span>' +
+      '<span class="p' + (red ? ' neg' : '') + '">' + (red ? '−' + fmt(l.cost) : '+' + fmt(l.pts)) + '</span>' +
+      '<button class="rm" type="button" data-act="rm-log" aria-label="Remove ' + esc(l.name) + ' entry">Remove</button>' +
+    '</li>';
+  });
+  html += '</ul></div>';
+  if (all.length > shown.length) html += '<button class="btn soft block" type="button" data-act="more-hist">Show older entries</button>';
+  $('#hist').innerHTML = html;
+}
+
+function renderSettings(){
+  $('#s-goal').value = S.settings.weeklyGoal;
+  $('#s-bonus').value = S.settings.bonusPct;
+  var lb = S.ui.lastBackup;
+  $('#s-last').textContent = 'Last backup: ' + (lb ? new Date(lb).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'never');
+}
+
+/* ---------- actions ---------- */
+function popPoints(id, pts){
+  if (reduceMotion()) return;
+  var li = document.querySelector('.row[data-id="' + id + '"]');
+  if (!li) return;
+  var s = document.createElement('span');
+  s.className = 'pop'; s.textContent = '+' + pts; s.setAttribute('aria-hidden', 'true');
+  li.appendChild(s);
+  s.addEventListener('animationend', function(){ s.remove(); });
+}
+function logChore(id, t, backdated){
+  var c = S.chores.find(function(x){ return x.id === id; });
+  if (!c) return;
+  var now = Date.now(), before = snap(), st = status(c, now), p = pointsFor(c, t);
+  if (view === 'chores' && !frozenOrder) frozenOrder = $$('#list-sched .row').map(function(li){ return li.dataset.id; });
+  var log = { id: uid(), type: 'chore', choreId: c.id, name: c.name, emoji: c.emoji, t: t, pts: p.pts, bonus: p.bonus };
+  if (backdated) log.backdated = true;
+  S.logs.push(log);
+  S.ui.hintDone = true;
+  save();
+  var after = snap();
+  if (view === 'chores') { renderChores({ id: c.id, from: st.fill }); popPoints(c.id, p.pts); } else render();
+  var msg = c.name + ' logged, +' + p.pts;
+  if (after.level > before.level) msg = 'Level ' + after.level + ' reached! ' + msg;
+  else if (after.goal > 0 && before.week < after.goal && after.week >= after.goal) msg = 'Weekly goal reached! ' + msg;
+  toast(msg, function(){
+    S.logs = S.logs.filter(function(l){ return l.id !== log.id; });
+    save(); render(); toast('Log removed');
+  });
+}
+
+function openChoreSheet(id){
+  var isNew = !id;
+  var c = isNew ? { name: '', emoji: '✨', points: 10, interval: 7 } : S.chores.find(function(x){ return x.id === id; });
+  if (!c) return;
+  var today = isoDate(Date.now()), yest = isoDate(addDays(Date.now(), -1)), rep = !!c.interval;
+  var html = sheetHead(c.emoji || '•', isNew ? 'New chore' : c.name);
+  if (!isNew) {
+    html += '<div class="sec"><h4>Log an earlier day</h4>' +
+      '<p class="small muted">Forgot to tap? Pick the day you did it and its timer starts from there.</p>' +
+      '<div class="inline"><input class="input" type="date" id="f-date" max="' + today + '" value="' + yest + '" aria-label="Day you did it">' +
+      '<button class="btn" type="button" data-act="log-past" data-id="' + c.id + '">Log it</button></div>' +
+      '<p class="err" id="f-date-err" hidden></p></div>';
+  }
+  html += '<form class="sec" id="chore-form" data-id="' + (isNew ? '' : c.id) + '" novalidate>' +
+    (isNew ? '' : '<h4>Edit</h4>') +
+    '<div class="grid2"><label class="field">Icon<input class="input center" id="f-emoji" value="' + esc(c.emoji || '') + '" autocomplete="off" aria-label="Icon (an emoji)"></label>' +
+    '<label class="field">Name<input class="input" id="f-name" value="' + esc(c.name) + '" autocomplete="off" maxlength="40" placeholder="Water the plants"></label></div>' +
+    '<div class="field"><span id="f-kind-label">Schedule</span><div class="seg" role="radiogroup" aria-labelledby="f-kind-label">' +
+      '<input type="radio" name="f-kind" id="f-k-rep" value="rep"' + (rep ? ' checked' : '') + '><label for="f-k-rep">Repeats</label>' +
+      '<input type="radio" name="f-kind" id="f-k-bon" value="bon"' + (rep ? '' : ' checked') + '><label for="f-k-bon">Bonus</label>' +
+    '</div></div>' +
+    '<div class="grid2b"><label class="field">Points<input class="input num" id="f-points" type="number" inputmode="numeric" min="0" max="999" value="' + c.points + '"></label>' +
+    '<label class="field" id="f-int-wrap"' + (rep ? '' : ' hidden') + '>Every how many days<input class="input num" id="f-int" type="number" inputmode="numeric" min="1" max="365" value="' + (c.interval || 7) + '"></label></div>' +
+    '<p class="small muted" id="f-kind-help">' + kindHelp(rep) + '</p>' +
+    '<p class="err" id="f-err" hidden></p>' +
+    '<button class="btn block" type="submit">' + (isNew ? 'Add chore' : 'Save changes') + '</button>' +
+    (isNew ? '' : '<button class="btn danger block" type="button" data-act="del-chore" data-id="' + c.id + '">Delete chore</button>') +
+  '</form>';
+  openSheet(html);
+}
+function kindHelp(rep){
+  return rep ? 'Shows how soon it’s due. Doing it by the due day earns the ' + (+S.settings.bonusPct || 0) + '% on-time bonus.'
+             : 'An optional extra. It never shows as due or overdue.';
+}
+function showErr(id, msg){ var e = $('#' + id); if (e) { e.textContent = msg; e.hidden = false; } }
+function saveChoreForm(form){
+  var name = $('#f-name').value.trim();
+  var emoji = firstGrapheme($('#f-emoji').value.trim()) || '•';
+  var pts = Number($('#f-points').value);
+  var rep = $('#f-k-rep').checked;
+  var iv = Number($('#f-int').value);
+  var err = !name ? 'Give the chore a name.'
+    : !(Number.isInteger(pts) && pts >= 0 && pts <= 999) ? 'Points need to be a whole number from 0 to 999.'
+    : rep && !(Number.isInteger(iv) && iv >= 1 && iv <= 365) ? 'Days need to be a whole number from 1 to 365.' : '';
+  if (err) { showErr('f-err', err); return; }
+  var id = form.dataset.id;
+  if (id) {
+    var c = S.chores.find(function(x){ return x.id === id; });
+    if (c) { c.name = name; c.emoji = emoji; c.points = pts; c.interval = rep ? iv : null; }
+    toast('Changes saved');
+  } else {
+    S.chores.push({ id: uid(), name: name, emoji: emoji, points: pts, interval: rep ? iv : null });
+    toast('Chore added');
+  }
+  save(); closeSheet(); frozenOrder = null; render();
+}
+function logPast(id){
+  var v = $('#f-date').value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { showErr('f-date-err', 'Pick the day you did it.'); return; }
+  var today = isoDate(Date.now());
+  if (v > today) { showErr('f-date-err', 'That day hasn’t happened yet. Pick today or earlier.'); return; }
+  var parts = v.split('-').map(Number);
+  var t = v === today ? Date.now() : new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0).getTime();
+  closeSheet(true);
+  logChore(id, t, v !== today);
+}
+function delChore(btn){
+  if (!arm(btn, 'Tap again to delete')) return;
+  var id = btn.dataset.id, c = S.chores.find(function(x){ return x.id === id; });
+  S.chores = S.chores.filter(function(x){ return x.id !== id; });
+  save(); closeSheet(); render();
+  toast('Deleted ' + (c ? c.name : 'chore') + '. Its history stays.');
+}
+
+function openRewardSheet(id){
+  var isNew = !id;
+  var r = isNew ? { name: '', emoji: '🎉', cost: 200 } : S.rewards.find(function(x){ return x.id === id; });
+  if (!r) return;
+  openSheet(sheetHead(r.emoji || '•', isNew ? 'New reward' : r.name) +
+    '<form class="sec" id="reward-form" data-id="' + (isNew ? '' : r.id) + '" novalidate>' +
+    '<div class="grid2"><label class="field">Icon<input class="input center" id="f-emoji" value="' + esc(r.emoji || '') + '" autocomplete="off" aria-label="Icon (an emoji)"></label>' +
+    '<label class="field">Name<input class="input" id="f-name" value="' + esc(r.name) + '" autocomplete="off" maxlength="40" placeholder="Movie night"></label></div>' +
+    '<label class="field">Cost in points<input class="input num" id="f-cost" type="number" inputmode="numeric" min="1" max="99999" value="' + r.cost + '"></label>' +
+    '<p class="err" id="f-err" hidden></p>' +
+    '<button class="btn block" type="submit">' + (isNew ? 'Add reward' : 'Save changes') + '</button>' +
+    (isNew ? '' : '<button class="btn danger block" type="button" data-act="del-reward" data-id="' + r.id + '">Delete reward</button>') +
+    '</form>');
+}
+function saveRewardForm(form){
+  var name = $('#f-name').value.trim();
+  var emoji = firstGrapheme($('#f-emoji').value.trim()) || '•';
+  var cost = Number($('#f-cost').value);
+  var err = !name ? 'Give the reward a name.' : !(Number.isInteger(cost) && cost >= 1 && cost <= 99999) ? 'Cost needs to be a whole number from 1 to 99,999.' : '';
+  if (err) { showErr('f-err', err); return; }
+  var id = form.dataset.id;
+  if (id) {
+    var r = S.rewards.find(function(x){ return x.id === id; });
+    if (r) { r.name = name; r.emoji = emoji; r.cost = cost; }
+    toast('Changes saved');
+  } else {
+    S.rewards.push({ id: uid(), name: name, emoji: emoji, cost: cost });
+    toast('Reward added');
+  }
+  save(); closeSheet(); render();
+}
+function delReward(btn){
+  if (!arm(btn, 'Tap again to delete')) return;
+  var id = btn.dataset.id;
+  S.rewards = S.rewards.filter(function(x){ return x.id !== id; });
+  save(); closeSheet(); render(); toast('Reward deleted');
+}
+function redeem(btn){
+  var id = btn.closest('.row').dataset.id, r = S.rewards.find(function(x){ return x.id === id; });
+  if (!r || totals().balance < r.cost) return;
+  if (!arm(btn, 'Spend ' + fmt(r.cost) + '?')) return;
+  var log = { id: uid(), type: 'redeem', rewardId: r.id, name: r.name, emoji: r.emoji, cost: r.cost, t: Date.now() };
+  S.logs.push(log);
+  save(); render();
+  toast('Redeemed: ' + r.name + '. Enjoy it.', function(){
+    S.logs = S.logs.filter(function(l){ return l.id !== log.id; });
+    save(); render(); toast('Redemption undone');
+  });
+}
+function rmLog(btn){
+  if (!arm(btn, 'Confirm')) return;
+  var id = btn.closest('.row').dataset.id, idx = -1;
+  for (var i = 0; i < S.logs.length; i++) if (S.logs[i].id === id) idx = i;
+  if (idx < 0) return;
+  var removed = S.logs.splice(idx, 1)[0];
+  save(); render();
+  toast('Entry removed', function(){ S.logs.push(removed); save(); render(); toast('Entry restored'); });
+}
+
+/* ---------- backup ---------- */
+function markBackup(){ S.ui.lastBackup = Date.now(); save(); if (view === 'settings') renderSettings(); }
+function exportBackup(){
+  if (!HOSTED) { toast('Saving files doesn’t work in this preview. Use Copy backup as text instead.'); return; }
+  var json = JSON.stringify(S, null, 1);
+  var name = 'tidy-backup-' + isoDate(Date.now()) + '.json';
+  var file = null;
+  try { file = new File([json], name, { type: 'application/json' }); } catch (e) {}
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: 'Tidy backup' }).then(function(){ markBackup(); toast('Backup saved'); }).catch(function(e){
+      if (e && e.name === 'AbortError') return;
+      downloadBackup(json, name);
+    });
+    return;
+  }
+  downloadBackup(json, name);
+}
+function downloadBackup(json, name){
+  try {
+    var url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+    markBackup(); toast('Backup saved');
+  } catch (e) { toast('Couldn’t save a file here. Use Copy backup as text instead.'); }
+}
+function copyBackup(){
+  var json = JSON.stringify(S);
+  var fallback = function(){
+    var box = $('#s-paste-box'), ta = $('#s-paste');
+    box.open = true; ta.value = json; ta.focus(); ta.select();
+    toast('Copying was blocked. The backup text is selected below; copy it from there.');
+  };
+  try {
+    navigator.clipboard.writeText(json).then(function(){ markBackup(); toast('Backup copied. Paste it into a note or file to keep it.'); }, fallback);
+  } catch (e) { fallback(); }
+}
+function startRestore(text){
+  var d = null;
+  try { d = JSON.parse(String(text || '').trim()); } catch (e) {}
+  if (!isValid(d)) { toast('That isn’t a Tidy backup. Check that you copied the whole text.'); return; }
+  var nC = d.chores.length, nL = d.logs.length, nR = Array.isArray(d.rewards) ? d.rewards.length : 0;
+  confirmSheet('Restore this backup?',
+    'It has ' + nC + ' ' + plural(nC, 'chore', 'chores') + ', ' + nR + ' ' + plural(nR, 'reward', 'rewards') + ' and ' + nL + ' log ' + plural(nL, 'entry', 'entries') + '. Restoring replaces everything on this phone.',
+    'Replace my data', function(){
+      S = normalize(d); save(); $('#s-paste').value = ''; frozenOrder = null; render(); toast('Backup restored');
+    });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', function(e){
+  var b = e.target.closest('[data-act]');
+  if (!b) return;
+  var act = b.dataset.act, row = b.closest('.row'), id = b.dataset.id || (row && row.dataset.id);
+  switch (act) {
+    case 'log': logChore(id, Date.now(), false); break;
+    case 'more': openChoreSheet(id); break;
+    case 'add-chore': openChoreSheet(null); break;
+    case 'log-past': logPast(id); break;
+    case 'del-chore': delChore(b); break;
+    case 'edit-reward': openRewardSheet(id); break;
+    case 'add-reward': openRewardSheet(null); break;
+    case 'del-reward': delReward(b); break;
+    case 'redeem': redeem(b); break;
+    case 'rm-log': rmLog(b); break;
+    case 'more-hist': histLimit += 60; renderHistory(); break;
+    case 'close': closeSheet(); break;
+    case 'tab': show(b.dataset.view); break;
+    case 'hint-ok': S.ui.hintDone = true; save(); renderNotes(); break;
+    case 'dismiss-install': S.ui.installDismissed = true; save(); renderNotes(); break;
+    case 'export': exportBackup(); break;
+    case 'copy': copyBackup(); break;
+    case 'restore-paste': startRestore($('#s-paste').value); break;
+    case 'erase':
+      confirmSheet('Erase everything?', 'Every chore, reward and log entry on this phone will be deleted, and the chore list goes back to the starter set. This can’t be undone.', 'Erase everything', function(){
+        S = freshState(); save(); frozenOrder = null; render(); toast('Everything erased');
+      });
+      break;
+    case 'confirm-yes': { var fn = pendingConfirm; pendingConfirm = null; closeSheet(); if (fn) fn(); break; }
+  }
+});
+document.addEventListener('submit', function(e){
+  e.preventDefault();
+  if (e.target.id === 'chore-form') saveChoreForm(e.target);
+  else if (e.target.id === 'reward-form') saveRewardForm(e.target);
+});
+document.addEventListener('input', function(e){
+  if (e.target.id === 'f-emoji') { var i = $('#sheet-ico'); if (i) i.textContent = firstGrapheme(e.target.value.trim()) || '•'; }
+  if (e.target.id === 'f-name' || e.target.id === 'f-points' || e.target.id === 'f-int' || e.target.id === 'f-cost') { var er = $('#f-err'); if (er) er.hidden = true; }
+});
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (t.name === 'f-kind') {
+    var rep = $('#f-k-rep').checked;
+    $('#f-int-wrap').hidden = !rep;
+    $('#f-kind-help').textContent = kindHelp(rep);
+  } else if (t.id === 's-goal' || t.id === 's-bonus') {
+    var v = Number(t.value), max = t.id === 's-goal' ? 9999 : 200;
+    if (!Number.isInteger(v) || v < 0 || v > max) { toast('Enter a whole number from 0 to ' + fmt(max) + '.'); renderSettings(); return; }
+    if (t.id === 's-goal') S.settings.weeklyGoal = v; else S.settings.bonusPct = v;
+    save(); toast('Changes saved');
+  } else if (t.id === 's-file' && t.files && t.files[0]) {
+    var fr = new FileReader();
+    fr.onload = function(){ startRestore(fr.result); t.value = ''; };
+    fr.onerror = function(){ toast('Couldn’t read that file.'); t.value = ''; };
+    fr.readAsText(t.files[0]);
+  }
+});
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && sheet) closeSheet(); });
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible' && !sheet) { frozenOrder = null; render(); }
+});
+setInterval(function(){
+  if (document.visibilityState === 'visible' && !sheet && view === 'chores' && !toastEl) { frozenOrder = null; renderChores(); }
+}, 60000);
+
+if (HOSTED && 'serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+}
+if (HOSTED && navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(function(){}); }
+
+var start = (location.hash || '').replace('#', '');
+show(VIEWS.indexOf(start) >= 0 ? start : 'chores');
+})();
+</script>
+</body>
+</html>
